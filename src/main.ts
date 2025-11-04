@@ -34,10 +34,22 @@ import '@ionic/vue/css/palettes/dark.system.css';
 /* Theme variables */
 import './theme/variables.css';
 
+import { registerSW } from 'virtual:pwa-register';
+
 const app = createApp(App)
   .use(IonicVue)
   .use(router);
 
 router.isReady().then(() => {
   app.mount('#app');
+});
+
+registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    console.log('New content available, please refresh.');
+  },
+  onOfflineReady() {
+    console.log('App ready to work offline');
+  },
 });
