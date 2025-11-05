@@ -65,3 +65,7 @@ export interface PaginatedResponse<T> {
     totalPages: number;
   };
 }
+
+export interface TransactionCategoryParams extends PaginationParams {
+  typeId?: string;
+}

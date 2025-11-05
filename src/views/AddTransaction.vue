@@ -7,7 +7,7 @@
     </ion-header>
 
     <ion-content>
-      <ion-loading :is-open="loadingTypes || loadingCategories" message="Loading..."></ion-loading>
+      <ion-loading :is-open="loading" message="Loading..."></ion-loading>
 
       <form @submit.prevent="handleSubmit" class="ion-padding">
         <!-- Amount -->
@@ -47,6 +47,7 @@
             interface="action-sheet"
             placeholder="Select category"
             required
+            :disabled="!formData.typeId"
           >
             <ion-select-option v-for="category in categories" :key="category.id" :value="category.id">
               {{ category.name }}
@@ -98,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
@@ -108,25 +109,34 @@ import {
 } from '@ionic/vue';
 import { checkmark } from 'ionicons/icons';
 import { transactionService, transactionTypeService, transactionCategoryService } from '@/services/api';
-import type { TransactionType, TransactionCategory } from '@/types';
+import type { TransactionType, TransactionCategory, TransactionCategoryParams } from '@/types';
 
 const router = useRouter();
 
 // State
 const loading = ref(false);
-const loadingTypes = ref(false);
-const loadingCategories = ref(false);
+// const loadingCounter = ref(0);
 const error = ref<string | null>(null);
 
 const types = ref<TransactionType[]>([]);
 const categories = ref<TransactionCategory[]>([]);
+
+const getFormattedLocalDate = (dateStr?: string) => {
+  const now = dateStr ? new Date(dateStr) : new Date();
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 // Form data
 const formData = ref({
   amount: 0,
   typeId: '',
   categoryId: '',
-  date: new Date().toISOString().slice(0, 16), // Format: YYYY-MM-DDTHH:mm
+  date: getFormattedLocalDate(),
   description: ''
 });
 
@@ -141,28 +151,33 @@ const isFormValid = computed(() => {
 
 // Load types & categories
 const loadTypes = async () => {
+  loading.value = true;
   try {
-    loadingTypes.value = true;
     const response = await transactionTypeService.getAll({ page: 1, limit: 100 });
     types.value = response.data;
+    console.log('Loaded types:', types.value);
   } catch (e: any) {
     console.error('Error loading types:', e);
     error.value = 'Failed to load transaction types';
   } finally {
-    loadingTypes.value = false;
+    loading.value = false;
   }
 };
 
-const loadCategories = async () => {
+const loadCategories = async (typeId?: string) => {
+  loading.value = true;
   try {
-    loadingCategories.value = true;
-    const response = await transactionCategoryService.getAll({ page: 1, limit: 100 });
+    const params: TransactionCategoryParams = { page: 1, limit: 100 };
+    if (typeId) {
+      params.typeId = typeId;
+    }
+    const response = await transactionCategoryService.getAll(params);
     categories.value = response.data;
   } catch (e: any) {
     console.error('Error loading categories:', e);
     error.value = 'Failed to load categories';
   } finally {
-    loadingCategories.value = false;
+    loading.value = false;
   }
 };
 
@@ -174,15 +189,12 @@ const handleSubmit = async () => {
 
     // Format date untuk backend: "2025-11-02 11:12:13"
     const dateObj = new Date(formData.value.date);
-    const formattedDate = dateObj.toISOString()
-      .replace('T', ' ')
-      .split('.')[0];
 
     await transactionService.create({
       amount: formData.value.amount,
       typeId: formData.value.typeId,
       categoryId: formData.value.categoryId,
-      date: formattedDate,
+      date: getFormattedLocalDate(formData.value.date),
       description: formData.value.description
     });
 
@@ -200,7 +212,7 @@ const handleSubmit = async () => {
       amount: 0,
       typeId: '',
       categoryId: '',
-      date: new Date().toISOString().slice(0, 16),
+      date: getFormattedLocalDate(),
       description: ''
     };
 
@@ -222,9 +234,17 @@ const handleSubmit = async () => {
   }
 };
 
+watch(() => formData.value.typeId, (newTypeId) => {
+  formData.value.categoryId = ''; // Clear category selection when type changes
+  if (newTypeId) {
+    loadCategories(newTypeId);
+  } else {
+    categories.value = []; // Clear categories if no type is selected
+  }
+});
+
 onMounted(() => {
   loadTypes();
-  loadCategories();
 });
 </script>
 

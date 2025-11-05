@@ -16,7 +16,7 @@
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
 
-      <ion-loading :is-open="loading && transactions.length === 0" message="Loading..."></ion-loading>
+      <ion-loading :is-open="loading" message="Loading..."></ion-loading>
 
       <!-- Empty State -->
       <div v-if="!loading && transactions.length === 0" class="empty-state">
@@ -103,25 +103,39 @@ const router = useRouter();
 const transactions = ref<Transaction[]>([]);
 const loading = ref(false);
 
-// Group transactions by date
+// New helper to parse API date string as UTC
+const parseUTCDate = (datetime: string) => {
+  if (!datetime) return new Date(); // Fallback for safety
+  return new Date(datetime);
+};
+
+// Group transactions by local date
 const groupedTransactions = computed(() => {
   const groups: Record<string, Transaction[]> = {};
   
   transactions.value.forEach(transaction => {
-    const date = transaction.date.split(' ')[0]; // Get YYYY-MM-DD part
-    if (!groups[date]) {
-      groups[date] = [];
+    const localDate = parseUTCDate(transaction.date);
+    
+    // Get the local date parts (YYYY-MM-DD) to use as a key
+    const year = localDate.getFullYear();
+    const month = (localDate.getMonth() + 1).toString().padStart(2, '0');
+    const day = localDate.getDate().toString().padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
     }
-    groups[date].push(transaction);
+    groups[dateKey].push(transaction);
   });
 
-  // Sort dates descending
+  // Sort groups by date descending
   const sorted: Record<string, Transaction[]> = {};
   Object.keys(groups)
     .sort((a, b) => b.localeCompare(a))
     .forEach(key => {
+      // Sort transactions within each group by time descending
       sorted[key] = groups[key].sort((a, b) => 
-        b.date.localeCompare(a.date)
+        parseUTCDate(b.date).getTime() - parseUTCDate(a.date).getTime()
       );
     });
 
@@ -132,17 +146,22 @@ const groupedTransactions = computed(() => {
 const formatDateHeader = (date: string) => {
   const d = new Date(date);
   const today = new Date();
-  const yesterday = new Date(today);
+  const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
-  const dateStr = d.toISOString().split('T')[0];
-  const todayStr = today.toISOString().split('T')[0];
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  // Reset time part for accurate date comparison
+  today.setHours(0, 0, 0, 0);
+  yesterday.setHours(0, 0, 0, 0);
+  // The date string from the group key has no time, but creating a new Date from it might add one based on timezone.
+  // So, we create a new date and zero out the time to be safe.
+  const compareDate = new Date(date);
+  compareDate.setHours(0, 0, 0, 0);
 
-  if (dateStr === todayStr) return 'Today';
-  if (dateStr === yesterdayStr) return 'Yesterday';
+  if (compareDate.getDate() === today.getDate()) return 'Today';
+  if (compareDate.getDate() === yesterday.getDate()) return 'Yesterday';
 
-  return d.toLocaleDateString('id-ID', {
+  // Use a new Date object from the original date string for formatting
+  return new Date(date).toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -151,10 +170,13 @@ const formatDateHeader = (date: string) => {
 };
 
 const formatTime = (datetime: string) => {
-  const d = new Date(datetime);
+  console.log('Formatting time for datetime:', datetime);
+  const d = parseUTCDate(datetime);
+  console.log('Parsed date object:', d);
   return d.toLocaleTimeString('id-ID', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: false
   });
 };
 
@@ -173,8 +195,8 @@ const formatAmount = (amount: number, type?: string) => {
 
 // Load transactions
 const loadTransactions = async () => {
+  loading.value = true;
   try {
-    loading.value = true;
     const response = await transactionService.getAll();
     transactions.value = response.data;
   } catch (e: any) {
@@ -185,7 +207,9 @@ const loadTransactions = async () => {
       color: 'danger',
       position: 'top'
     });
-    await toast.present();
+    await toast.present().then(() => {
+      loading.value = false;
+    });
   } finally {
     loading.value = false;
   }

@@ -9,6 +9,7 @@ import type {
   TransactionCategory,
   PaginationParams,
   PaginatedResponse,
+  TransactionCategoryParams,
 } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://api.arulajeh.id';
@@ -151,7 +152,7 @@ export const transactionTypeService = {
 
 // ============ TRANSACTION CATEGORY SERVICE ============
 export const transactionCategoryService = {
-  async getAll(params?: PaginationParams): Promise<PaginatedResponse<TransactionCategory>> {
+  async getAll(params?: TransactionCategoryParams): Promise<PaginatedResponse<TransactionCategory>> {
     const response = await apiClient.get<PaginatedResponse<TransactionCategory>>('/trans-category', { params });
     return response.data;
   },
