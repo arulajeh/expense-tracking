@@ -10,6 +10,8 @@ import type {
   PaginationParams,
   PaginatedResponse,
   TransactionCategoryParams,
+  CaptchaData,
+  CaptchaResponse,
 } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://api.arulajeh.id';
@@ -93,6 +95,11 @@ export const authService = {
     await apiClient.post('/auth/logout-all');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+  },
+
+  async generateCaptcha(): Promise<CaptchaData> {
+    const response = await apiClient.get<CaptchaResponse>('/captcha/generate');
+    return response.data.data;
   },
 };
 

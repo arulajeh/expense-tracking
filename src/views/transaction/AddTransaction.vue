@@ -1,7 +1,11 @@
 <template>
   <ion-page>
     <ion-header>
+      <!-- Add back button -->
       <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-back-button default-href="/transactions"></ion-back-button>
+        </ion-buttons>
         <ion-title>Add Transaction</ion-title>
       </ion-toolbar>
     </ion-header>
@@ -105,7 +109,8 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonItem, IonInput, IonSelect, IonSelectOption, IonTextarea,
   IonButton, IonIcon, IonText, IonLoading,
-  toastController
+  toastController,
+  IonBackButton, IonButtons
 } from '@ionic/vue';
 import { checkmark } from 'ionicons/icons';
 import { transactionService, transactionTypeService, transactionCategoryService } from '@/services/api';

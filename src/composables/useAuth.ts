@@ -11,6 +11,19 @@ export function useAuth() {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
+  const captchaImage = ref('');
+  const captchaId = ref('');
+
+  const loadCaptcha = async () => {
+    try {
+      const captchaData = await authService.generateCaptcha();
+      captchaImage.value = captchaData.imageBase64;
+      captchaId.value = captchaData.captchaId;
+    } catch (e: any) {
+      error.value = 'Failed to load CAPTCHA. Please try again.';
+    }
+  };
+
   const login = async (credentials: LoginRequest) => {
     try {
       loading.value = true;
@@ -25,6 +38,7 @@ export function useAuth() {
       router.push('/');
     } catch (e: any) {
       error.value = e.response?.data?.message || 'Login failed';
+      await loadCaptcha(); // Reload captcha on failed login
       throw e;
     } finally {
       loading.value = false;
@@ -37,14 +51,12 @@ export function useAuth() {
       error.value = null;
       
       const response = await authService.register(data);
-      
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
       currentUser.value = response.user;
       
-      router.push('/');
+      router.replace('/login');
     } catch (e: any) {
       error.value = e.response?.data?.message || 'Registration failed';
+      await loadCaptcha(); // Reload captcha on failed registration
       throw e;
     } finally {
       loading.value = false;
@@ -76,5 +88,8 @@ export function useAuth() {
     register,
     logout,
     checkAuth,
+    captchaImage,
+    captchaId,
+    loadCaptcha,
   };
 }

@@ -9,13 +9,13 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('@/views/Login.vue'),
+    component: () => import('@/views/auth/Login.vue'),
     meta: { requiresGuest: true }
   },
   {
     path: '/register',
     name: 'Register',
-    component: () => import('@/views/Register.vue'),
+    component: () => import('@/views/auth/Register.vue'),
     meta: { requiresGuest: true }
   },
   {
@@ -35,17 +35,17 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: 'transactions',
         name: 'Transactions',
-        component: () => import('@/views/Transactions.vue')
+        component: () => import('@/views/transaction/Transactions.vue')
       },
       {
         path: 'add-transaction',
         name: 'AddTransaction',
-        component: () => import('@/views/AddTransaction.vue')
+        component: () => import('@/views/transaction/AddTransaction.vue')
       },
       {
         path: 'edit-transaction/:id',
         name: 'EditTransaction',
-        component: () => import('@/views/EditTransaction.vue')
+        component: () => import('@/views/transaction/EditTransaction.vue')
       },
       {
         path: 'settings',

@@ -8,12 +8,27 @@ export interface User {
 export interface LoginRequest {
   email: string;
   password: string;
+  captchaId: string;
+  captchaText: string;
 }
 
 export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
+  captchaId: string;
+  captchaText: string;
+}
+
+export interface CaptchaData {
+  imageBase64: string;
+  captchaId: string;
+}
+
+export interface CaptchaResponse {
+  message: string;
+  statusCode: number;
+  data: CaptchaData;
 }
 
 export interface AuthResponse {
