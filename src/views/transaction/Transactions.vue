@@ -11,7 +11,7 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content>
+    <ion-content ref="contentEl">
       <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
@@ -70,6 +70,17 @@
         </div>
       </ion-list>
 
+      <!-- Infinite Scroll -->
+      <ion-infinite-scroll
+              v-if="!isInfiniteScrollDisabled"
+              @ionInfinite="loadMore($event)"
+            >        <ion-infinite-scroll-content
+          loading-spinner="bubbles"
+          loading-text="Loading more..."
+        >
+        </ion-infinite-scroll-content>
+      </ion-infinite-scroll>
+
       <!-- Floating Action Button -->
       <ion-fab vertical="bottom" horizontal="end" slot="fixed">
         <ion-fab-button @click="goToAdd">
@@ -88,7 +99,7 @@ import {
   IonList, IonListHeader, IonItem, IonLabel, IonIcon,
   IonButton, IonButtons, IonLoading, IonRefresher, IonRefresherContent,
   IonItemSliding, IonItemOptions, IonItemOption,
-  IonFab, IonFabButton,
+  IonFab, IonFabButton, IonInfiniteScroll, IonInfiniteScrollContent,
   alertController, toastController
 } from '@ionic/vue';
 import {
@@ -96,17 +107,28 @@ import {
   arrowUp, arrowDown, create, trash
 } from 'ionicons/icons';
 import { transactionService } from '@/services/api';
-import type { Transaction } from '@/types';
+import type { Transaction, PaginationParams } from '@/types';
 
 const router = useRouter();
 
+const contentEl = ref<any>(null);
 const transactions = ref<Transaction[]>([]);
-const loading = ref(false);
+const loading = ref(true); // Controls initial full-screen loader
+const page = ref(1);
+const limit = 10;
+const isInfiniteScrollDisabled = ref(false);
 
 // New helper to parse API date string as UTC
 const parseUTCDate = (datetime: string) => {
-  if (!datetime) return new Date(); // Fallback for safety
-  return new Date(datetime);
+  if (!datetime) return new Date();
+  let ISODateString = datetime;
+  if (!ISODateString.includes('T')) {
+    ISODateString = ISODateString.replace(' ', 'T');
+  }
+  if (!ISODateString.endsWith('Z')) {
+    ISODateString += 'Z';
+  }
+  return new Date(ISODateString);
 };
 
 // Group transactions by local date
@@ -116,7 +138,6 @@ const groupedTransactions = computed(() => {
   transactions.value.forEach(transaction => {
     const localDate = parseUTCDate(transaction.date);
     
-    // Get the local date parts (YYYY-MM-DD) to use as a key
     const year = localDate.getFullYear();
     const month = (localDate.getMonth() + 1).toString().padStart(2, '0');
     const day = localDate.getDate().toString().padStart(2, '0');
@@ -128,12 +149,10 @@ const groupedTransactions = computed(() => {
     groups[dateKey].push(transaction);
   });
 
-  // Sort groups by date descending
   const sorted: Record<string, Transaction[]> = {};
   Object.keys(groups)
     .sort((a, b) => b.localeCompare(a))
     .forEach(key => {
-      // Sort transactions within each group by time descending
       sorted[key] = groups[key].sort((a, b) => 
         parseUTCDate(b.date).getTime() - parseUTCDate(a.date).getTime()
       );
@@ -144,23 +163,19 @@ const groupedTransactions = computed(() => {
 
 // Format helpers
 const formatDateHeader = (date: string) => {
-  const d = new Date(date);
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
-  // Reset time part for accurate date comparison
   today.setHours(0, 0, 0, 0);
   yesterday.setHours(0, 0, 0, 0);
-  // The date string from the group key has no time, but creating a new Date from it might add one based on timezone.
-  // So, we create a new date and zero out the time to be safe.
+  
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
 
-  if (compareDate.getDate() === today.getDate()) return 'Today';
-  if (compareDate.getDate() === yesterday.getDate()) return 'Yesterday';
+  if (compareDate.getTime() === today.getTime()) return 'Today';
+  if (compareDate.getTime() === yesterday.getTime()) return 'Yesterday';
 
-  // Use a new Date object from the original date string for formatting
   return new Date(date).toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
@@ -170,9 +185,7 @@ const formatDateHeader = (date: string) => {
 };
 
 const formatTime = (datetime: string) => {
-  console.log('Formatting time for datetime:', datetime);
   const d = parseUTCDate(datetime);
-  console.log('Parsed date object:', d);
   return d.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
@@ -193,12 +206,22 @@ const formatAmount = (amount: number, type?: string) => {
   return `-${formatted}`;
 };
 
-// Load transactions
+// --- New Data Loading Logic ---
+
 const loadTransactions = async () => {
-  loading.value = true;
   try {
-    const response = await transactionService.getAll();
-    transactions.value = response.data;
+    const params: PaginationParams = { page: page.value, limit };
+    const response = await transactionService.getAll(params);
+
+    if (page.value === 1) {
+      transactions.value = response.data; // Replace data on refresh/initial load
+    } else {
+      transactions.value.push(...response.data); // Append data for infinite scroll
+    }
+
+    // Always set the disabled state based on the API response
+    isInfiniteScrollDisabled.value = !response.pagination.hasNextPage;
+    console.log(`isInfiniteScrollDisabled: ${isInfiniteScrollDisabled.value}`);
   } catch (e: any) {
     console.error('Error loading transactions:', e);
     const toast = await toastController.create({
@@ -207,22 +230,39 @@ const loadTransactions = async () => {
       color: 'danger',
       position: 'top'
     });
-    await toast.present().then(() => {
-      loading.value = false;
-    });
-  } finally {
-    loading.value = false;
+    await toast.present();
+  }
+};
+
+const loadMore = async (event: any) => {
+  // If infinite scroll should be disabled, just complete and return
+  if (isInfiniteScrollDisabled.value) {
+    event.target.complete();
+    return;
+  }
+  console.log('Loading more transactions...');
+  page.value++;
+  await loadTransactions();
+  event.target.complete();
+};
+
+const handleRefresh = async (event?: any) => {
+  page.value = 1;
+  // Let loadTransactions manage the disabled state
+  await loadTransactions();
+
+  // After data is loaded and list is replaced, scroll to top
+  contentEl.value?.$el.scrollToTop(300);
+
+  if (event) {
+    event.target.complete();
   }
 };
 
 const refresh = () => {
-  loadTransactions();
+  handleRefresh();
 };
 
-const handleRefresh = async (event: any) => {
-  await loadTransactions();
-  event.target.complete();
-};
 
 // Navigation
 const goToAdd = () => {
@@ -282,8 +322,12 @@ const deleteTransaction = async (id: string) => {
   }
 };
 
-onMounted(() => {
-  loadTransactions();
+onMounted(async () => {
+  page.value = 1;
+  transactions.value = [];
+  isInfiniteScrollDisabled.value = false;
+  await loadTransactions();
+  loading.value = false; // Turn off initial loader
 });
 </script>
 

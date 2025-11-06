@@ -105,8 +105,8 @@ export const authService = {
 
 // ============ TRANSACTION SERVICE ============
 export const transactionService = {
-  async getAll(): Promise<PaginatedResponse<Transaction>> {
-    const response = await apiClient.get<PaginatedResponse<Transaction>>('/transaction');
+  async getAll(params?: PaginationParams): Promise<PaginatedResponse<Transaction>> {
+    const response = await apiClient.get<PaginatedResponse<Transaction>>('/transaction', { params });
     return response.data;
   },
 

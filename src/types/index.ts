@@ -71,14 +71,20 @@ export interface PaginationParams {
   limit?: number;
 }
 
+export interface Pagination {
+  currentPage: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  pagination: Pagination;
+  message: string;
+  statusCode: number;
 }
 
 export interface TransactionCategoryParams extends PaginationParams {
